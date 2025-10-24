@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.kafka.consumer import start_consumer, stop_consumer
 from app.kafka.producer import close_producer, produce_message
-from app.schemas import PublishRequest
+from app.schemas import PublishRequest, IntegrationEventRequest, ImageGeneratedRequest, VideoGeneratedRequest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +58,72 @@ async def publish(req: PublishRequest) -> Dict[str, str]:
         value=req.value,
         key=req.key,
         headers=req.headers,
+        sync=req.sync,
+    )
+    return {"topic": result["topic"], "status": result["status"]}
+
+@app.post("/integrations/event")
+async def integrations_event(req: IntegrationEventRequest) -> Dict[str, str]:
+    settings = get_settings()
+    topic = req.topic or settings.topic_default
+    headers = (req.headers or {}) | {"integration": req.integration, "action": req.action}
+    payload = {
+        "type": "integration_event",
+        "integration": req.integration,
+        "action": req.action,
+        "payload": req.payload,
+    }
+    result = produce_message(
+        topic=topic,
+        value=payload,
+        key=req.key,
+        headers=headers,
+        sync=req.sync,
+    )
+    return {"topic": result["topic"], "status": result["status"]}
+
+@app.post("/integrations/image-generated")
+async def integrations_image_generated(req: ImageGeneratedRequest) -> Dict[str, str]:
+    settings = get_settings()
+    topic = req.topic or settings.topic_default
+    headers = (req.headers or {}) | {"integration": req.integration, "event": "image_generated"}
+    payload = {
+        "type": "image_generated",
+        "integration": req.integration,
+        "image_url": req.image_url,
+        "prompt": req.prompt,
+        "meta": req.meta or {},
+        "site_id": req.site_id,
+        "user_id": req.user_id,
+    }
+    result = produce_message(
+        topic=topic,
+        value=payload,
+        key=req.key,
+        headers=headers,
+        sync=req.sync,
+    )
+    return {"topic": result["topic"], "status": result["status"]}
+
+@app.post("/integrations/video-generated")
+async def integrations_video_generated(req: VideoGeneratedRequest) -> Dict[str, str]:
+    settings = get_settings()
+    topic = req.topic or settings.topic_default
+    headers = (req.headers or {}) | {"integration": req.integration, "event": "video_generated"}
+    payload = {
+        "type": "video_generated",
+        "integration": req.integration,
+        "video_url": req.video_url,
+        "prompt": req.prompt,
+        "meta": req.meta or {},
+        "site_id": req.site_id,
+        "user_id": req.user_id,
+    }
+    result = produce_message(
+        topic=topic,
+        value=payload,
+        key=req.key,
+        headers=headers,
         sync=req.sync,
     )
     return {"topic": result["topic"], "status": result["status"]}
